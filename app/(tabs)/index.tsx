@@ -1,98 +1,253 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import React, { useRef, useState, useEffect } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  Image,
+  FlatList,
+  Pressable,
+  Animated,
+  useWindowDimensions,
+  Platform,
+} from 'react-native';
+import { Audio } from 'expo-av';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ALPHABETS } from '@/data/alphabets';
 
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+type Alphabet = (typeof ALPHABETS)[number];
+
+const SPACING = 16;
+
+/* ---------- Responsive Helpers ---------- */
+
+const getNumColumns = (width: number) => {
+  if (width >= 1024) return 4;
+  if (width >= 768) return 3;
+  return 2;
+};
+
+/* ---------- Grid Item ---------- */
+
+const GridItem = ({
+  item,
+  size,
+  onPress,
+}: {
+  item: Alphabet;
+  size: number;
+  onPress: (item: Alphabet) => void;
+}) => {
+  const scale = useRef(new Animated.Value(1)).current;
+  const [imageError, setImageError] = useState(false);
+
+  // ✅ IMPORTANT: reset state when FlatList reuses the cell
+  useEffect(() => {
+    setImageError(false);
+  }, [item.id]);
+
+  const handlePress = () => {
+    Animated.sequence([
+      Animated.spring(scale, {
+        toValue: 0.96,
+        useNativeDriver: true,
+      }),
+      Animated.spring(scale, {
+        toValue: 1,
+        friction: 4,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    onPress(item);
+  };
+
+  return (
+    <Pressable onPress={handlePress}>
+      <Animated.View
+        style={[
+          styles.card,
+          {
+            width: size,
+            height: size,
+            backgroundColor: item.color,
+            transform: [{ scale }],
+            padding: size * 0.08,
+          },
+        ]}
+      >
+        {item.image && !imageError ? (
+          <Image
+            source={item.image}
+            resizeMode="contain"
+            onError={() => setImageError(true)}
+            style={{
+              width: size * 0.55,
+              height: size * 0.55,
+              flex: 1,
+            }}
+          />
+        ) : (
+          <View
+            style={{
+              width: size * 0.55,
+              height: size * 0.55,
+              justifyContent: 'center',
+              alignItems: 'center',
+              flex: 1,
+            }}
+          >
+            <Text style={{ fontSize: 32 }}>📸</Text>
+          </View>
+        )}
+
+        <Text
+          style={[styles.letter, { fontSize: size * 0.22 }]}
+          numberOfLines={1}
+          adjustsFontSizeToFit
+        >
+          {item.letter}
+        </Text>
+
+        <Text
+          style={[styles.name, { fontSize: size * 0.09 }]}
+          numberOfLines={1}
+          adjustsFontSizeToFit
+        >
+          {item.name}
+        </Text>
+      </Animated.View>
+    </Pressable>
+  );
+};
+
+/* ---------- Screen ---------- */
 
 export default function HomeScreen() {
-  return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+  const { width } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const [sound, setSound] = useState<Audio.Sound | null>(null);
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+  const numColumns = getNumColumns(width);
+  const cardSize =
+    (width - SPACING * (numColumns + 1)) / numColumns;
+
+  const playSound = async (alphabet: Alphabet) => {
+    try {
+      if (sound) {
+        await sound.unloadAsync();
+        setSound(null);
+      }
+
+      if (alphabet.sound) {
+        const { sound: newSound } = await Audio.Sound.createAsync(
+          alphabet.sound,
+          { shouldPlay: true }
+        );
+        setSound(newSound);
+      }
+    } catch (error) {
+      console.log('Error playing sound:', error);
+    }
+  };
+
+  return (
+    <View style={styles.container}>
+      {/* Header */}
+      <View style={styles.header}>
+        <Text style={styles.title}>🎓 Learn Alphabets</Text>
+        <Text style={styles.subtitle}>
+          Tap each card to hear the name
+        </Text>
+      </View>
+
+      {/* Grid */}
+      <FlatList
+        data={ALPHABETS}
+        key={numColumns} // re-render only when layout changes
+        numColumns={numColumns}
+        keyExtractor={(item) => item.id.toString()} // ✅ STABLE KEY
+        columnWrapperStyle={
+          numColumns > 1
+            ? { justifyContent: 'space-between' }
+            : undefined
+        }
+        contentContainerStyle={{
+          padding: SPACING,
+          paddingBottom: insets.bottom + 140,
+        }}
+        renderItem={({ item }) => (
+          <GridItem
+            item={item}
+            size={cardSize}
+            onPress={playSound}
+          />
+        )}
+        removeClippedSubviews={false} // ✅ CRITICAL for Expo Go
+        initialNumToRender={12}
+        windowSize={5}
+        showsVerticalScrollIndicator={false}
+      />
+    </View>
   );
 }
 
+/* ---------- Styles ---------- */
+
 const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
+  container: {
+    flex: 1,
+    backgroundColor: '#F5F5F5',
+  },
+
+  header: {
+    paddingTop:
+      Platform.OS === 'web' ? 24 : Platform.OS === 'ios' ? 56 : 48,
+    paddingBottom: 16,
+    paddingHorizontal: 20,
+    backgroundColor: '#4A90E2',
+  },
+
+  title: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: '#fff',
+  },
+
+  subtitle: {
+    fontSize: 14,
+    color: '#FFF',
+  },
+
+  card: {
+    borderRadius: 12,
+    justifyContent: 'center',
     alignItems: 'center',
-    gap: 8,
+    margin: SPACING / 2,
+    flexDirection: 'column',
+
+    ...(Platform.OS === 'web'
+      ? ({
+          boxShadow: '0px 2px 4px rgba(0,0,0,0.1)',
+        } as any)
+      : {
+          elevation: 5,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.1,
+          shadowRadius: 4,
+        }),
   },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
+
+  letter: {
+    fontWeight: 'bold',
+    color: '#fff',
+    marginTop: 2,
+    textAlign: 'center',
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
+
+  name: {
+    color: '#fff',
+    marginTop: 2,
+    textAlign: 'center',
   },
 });
