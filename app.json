@@ -14,8 +14,7 @@
     "android": {
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.abhijethi.alphabetlearning",
-      "versionCode": 1
+      "package": "com.abhijethi.alphabetlearning"
     },
     "web": {
       "output": "static",
