@@ -2,12 +2,13 @@ import { useEffect, useState } from 'react';
 import * as FileSystem from 'expo-file-system';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const CACHE_DIR = `${FileSystem.cacheDirectory}alphabet-assets/`;
+const FS = FileSystem as any;
+const BASE_DIR: string = FS.documentDirectory ?? FS.cacheDirectory ?? FS.bundleDirectory ?? '';
+const CACHE_DIR = `${BASE_DIR}alphabet-assets/`;
 const FIRST_LAUNCH_KEY = 'has_cached_assets_v1';
 
-// Map alphabet indices to Google Drive File IDs (Replace these with your actual IDs)
 export const ALPHABET_FILE_IDS: Record<number, { image: string; audio: string }> = {
-  0: { image: '1apple_img_id', audio: '1apple_aud_id' },
+  0: { image: '1BBtOOvHOBuQhDa830douR6L2frJi5pGy', audio: '1HGnSK7YvOWNLDeHBNtMXxFHBMh3Idh0F' },
   1: { image: '2ball_img_id', audio: '2ball_aud_id' },
   2: { image: '3cat_img_id', audio: '3cat_aud_id' },
   3: { image: '4dog_img_id', audio: '4dog_aud_id' },
@@ -35,6 +36,12 @@ export const ALPHABET_FILE_IDS: Record<number, { image: string; audio: string }>
   25: { image: '26zebra_img_id', audio: '26zebra_aud_id' },
 };
 
+export const getGoogleDriveUrl = (fileId: string) =>
+  `https://drive.google.com/uc?export=download&id=${fileId}`;
+
+export const getCachedImagePath = (index: number) =>
+  `${CACHE_DIR}image-${index + 1}.png`;
+
 export const useAssetManager = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [progress, setProgress] = useState(0);
@@ -44,7 +51,6 @@ export const useAssetManager = () => {
   useEffect(() => {
     const initializeAssets = async () => {
       try {
-        // Check if assets already cached
         const cached = await AsyncStorage.getItem(FIRST_LAUNCH_KEY);
         if (cached === 'true') {
           setAssetsReady(true);
@@ -52,52 +58,41 @@ export const useAssetManager = () => {
           return;
         }
 
-        // Create cache directory
         const dirInfo = await FileSystem.getInfoAsync(CACHE_DIR);
         if (!dirInfo.exists) {
           await FileSystem.makeDirectoryAsync(CACHE_DIR, { intermediates: true });
         }
 
-        // Download all 26 images from Google Drive
         const totalAssets = 26;
         let successCount = 0;
 
         for (let i = 0; i < totalAssets; i++) {
+          const fileIds = ALPHABET_FILE_IDS[i];
+          if (!fileIds) continue;
+
           try {
-            const fileIds = ALPHABET_FILE_IDS[i];
-            if (!fileIds) continue;
-
             const imageUrl = getGoogleDriveUrl(fileIds.image);
-            const filename = `image-${i + 1}.png`;
-            const cachedPath = `${CACHE_DIR}${filename}`;
-
-            // Check if already cached
-            const fileInfo = await FileSystem.getInfoAsync(cachedPath);
-            if (fileInfo.exists) {
-              successCount++;
-              setProgress(Math.round(((successCount) / totalAssets) * 100));
-              continue;
+            const filePath = getCachedImagePath(i);
+            const fileInfo = await FileSystem.getInfoAsync(filePath);
+            if (!fileInfo.exists) {
+              await FileSystem.downloadAsync(imageUrl, filePath);
             }
-
-            // Download image
-            await FileSystem.downloadAsync(imageUrl, cachedPath);
             successCount++;
-            setProgress(Math.round(((successCount) / totalAssets) * 100));
           } catch (err) {
-            console.warn(`Failed to cache image ${i + 1}:`, err);
-            // Continue with other images even if one fails
-            successCount++;
-            setProgress(Math.round(((successCount) / totalAssets) * 100));
+            console.warn(`Image ${i + 1} failed`, err);
           }
+
+          setProgress(Math.round((successCount / totalAssets) * 100));
         }
 
-        // Mark assets as cached
-        await AsyncStorage.setItem(FIRST_LAUNCH_KEY, 'true');
+        if (successCount === totalAssets) {
+          await AsyncStorage.setItem(FIRST_LAUNCH_KEY, 'true');
+        }
+
         setAssetsReady(true);
-        setError(null);
       } catch (err: any) {
-        setError(`Failed to initialize assets: ${err.message}`);
-        setAssetsReady(true); // Allow app to continue anyway
+        setError(`Asset initialization failed: ${err.message}`);
+        setAssetsReady(true);
       } finally {
         setIsLoading(false);
       }
@@ -107,14 +102,4 @@ export const useAssetManager = () => {
   }, []);
 
   return { isLoading, progress, error, assetsReady };
-};
-
-// Helper to get Google Drive URL
-export const getGoogleDriveUrl = (fileId: string) => {
-  return `https://drive.google.com/uc?export=download&id=${fileId}`;
-};
-
-// Helper to get cached image path
-export const getCachedImagePath = (index: number) => {
-  return `${CACHE_DIR}image-${index + 1}.png`;
 };

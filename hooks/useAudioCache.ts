@@ -1,58 +1,57 @@
 import { useEffect, useState } from 'react';
 import * as FileSystem from 'expo-file-system';
 
-const CACHE_DIR = `${FileSystem.cacheDirectory}alphabet-sounds/`;
+/**
+ * Expo FileSystem typings are broken in some SDKs.
+ * Use runtime-safe access.
+ */
+const BASE_DIR =
+  (FileSystem as any).documentDirectory ||
+  (FileSystem as any).cacheDirectory ||
+  '';
 
-export const useAudioCache = (remoteUrl: string) => {
+const CACHE_DIR = `${BASE_DIR}alphabet-sounds/`;
+
+export const useAudioCache = (remoteUrl: string, id: number) => {
   const [cachedPath, setCachedPath] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const downloadAudio = async () => {
-    try {
-      if (!remoteUrl) return null;
+    if (!remoteUrl || loading || cachedPath) return cachedPath;
 
+    try {
       setLoading(true);
 
-      // Create cache directory
       const dirInfo = await FileSystem.getInfoAsync(CACHE_DIR);
       if (!dirInfo.exists) {
-        await FileSystem.makeDirectoryAsync(CACHE_DIR, { intermediates: true });
+        await FileSystem.makeDirectoryAsync(CACHE_DIR, {
+          intermediates: true,
+        });
       }
 
-      // Generate filename from URL
-      const filename = `sound-${remoteUrl.split('/').pop()}.mp3`;
-      const cachedFilePath = `${CACHE_DIR}${filename}`;
+      const filePath = `${CACHE_DIR}sound-${id}.mp3`;
 
-      // Check if already cached
-      const fileInfo = await FileSystem.getInfoAsync(cachedFilePath);
+      const fileInfo = await FileSystem.getInfoAsync(filePath);
       if (fileInfo.exists) {
-        setCachedPath(cachedFilePath);
-        setLoading(false);
-        return cachedFilePath;
+        setCachedPath(filePath);
+        return filePath;
       }
 
-      // Download and cache
-      const downloadResumable = FileSystem.createDownloadResumable(
-        remoteUrl,
-        cachedFilePath
-      );
-
-      const result = await downloadResumable.downloadAsync();
-      if (result?.uri) {
-        setCachedPath(result.uri);
-        setError(null);
-        setLoading(false);
-        return result.uri;
-      }
+      const result = await FileSystem.downloadAsync(remoteUrl, filePath);
+      setCachedPath(result.uri);
+      return result.uri;
     } catch (err: any) {
-      const errorMsg = `Failed to download audio: ${err.message}`;
-      setError(errorMsg);
-      setLoading(false);
-      console.warn(errorMsg);
+      setError(`Audio download failed: ${err.message}`);
       return null;
+    } finally {
+      setLoading(false);
     }
   };
 
-  return { cachedPath, loading, error, downloadAudio };
+  useEffect(() => {
+    downloadAudio();
+  }, [remoteUrl]);
+
+  return { cachedPath, loading, error };
 };

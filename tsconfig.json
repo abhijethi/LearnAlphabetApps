@@ -1,6 +1,7 @@
 {
   "compilerOptions": {
     "strict": true,
+    "types": ["node"],   
     "jsx": "react-native",
     "skipLibCheck": true,
     "esModuleInterop": true,
