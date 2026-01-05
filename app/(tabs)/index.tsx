@@ -9,10 +9,12 @@ import {
   Animated,
   useWindowDimensions,
   Platform,
+  Alert,
 } from 'react-native';
 import { Audio } from 'expo-av';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ALPHABETS } from '@/data/alphabets';
+import { useAudioCache } from '@/hooks/useAudioCache';
 
 type Alphabet = (typeof ALPHABETS)[number];
 
@@ -80,9 +82,9 @@ const GridItem = React.memo(
             },
           ]}
         >
-          {item.image && !imageError ? (
+          {!imageError ? (
             <Image
-              source={item.image}
+              source={item.getImage()}
               resizeMode="contain"
               onError={() => setImageError(true)}
               style={{
@@ -152,15 +154,25 @@ export default function HomeScreen() {
         setSound(null);
       }
 
-      if (alphabet.sound) {
+      if (alphabet.soundUrl) {
+        // Download and cache audio on demand
+        const { downloadAudio } = useAudioCache(alphabet.soundUrl);
+        const audioPath = await downloadAudio();
+
+        if (!audioPath) {
+          Alert.alert('Error', 'Failed to load audio. Please check your internet connection.');
+          return;
+        }
+
         const { sound: newSound } = await Audio.Sound.createAsync(
-          alphabet.sound,
-          { shouldPlay: true }
+          { uri: audioPath }
         );
         setSound(newSound);
+        await newSound.playAsync();
       }
     } catch (error) {
       console.log('Error playing sound:', error);
+      Alert.alert('Error', 'Failed to play audio');
     }
   }, [sound]);
 
