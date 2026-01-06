@@ -15,19 +15,45 @@ export default function TabLayout() {
         tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
         headerShown: false,
         tabBarButton: HapticTab,
-      }}>
+      }}
+    >
+      {/* 🅰️ ABC / Alphabets */}
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Home',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
+          title: 'ABC',
+          tabBarLabel: 'ABC',
+          tabBarIcon: ({ color }) => (
+            <IconSymbol
+              size={28}
+              name="textformat.abc"
+              color={color}
+            />
+          ),
         }}
       />
+
+      {/* 🔊 Phonics / Sounds */}
+      <Tabs.Screen
+        name="phonics"
+        options={{
+          title: 'Phonics',
+          tabBarLabel: 'Phonics',
+          tabBarIcon: ({ color }) => (
+            <IconSymbol
+              size={28}
+              name="speaker.wave.2.fill"
+              color={color}
+            />
+          ),
+        }}
+      />
+
+      {/* Hidden Explore tab */}
       <Tabs.Screen
         name="explore"
         options={{
-          title: 'Explore',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="paperplane.fill" color={color} />,
+          href: null,
         }}
       />
     </Tabs>
