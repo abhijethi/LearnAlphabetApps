@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "ABC Learning",
-    "slug": "ABC Learning",
+    "slug": "alphabet-learning",
     "version": "2.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
