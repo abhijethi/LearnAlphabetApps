@@ -1,18 +1,17 @@
-import React, { useRef, useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  Image,
-  FlatList,
-  Pressable,
-  Animated,
-  useWindowDimensions,
-  Platform,
-} from 'react-native';
-import { Audio } from 'expo-av';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ALPHABETS } from '@/data/alphabets';
+import { useAudioPlayer } from 'expo-audio';
+import { Image as ExpoImage } from 'expo-image';
+import React, { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  FlatList,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 type Alphabet = (typeof ALPHABETS)[number];
 
@@ -28,131 +27,155 @@ const getNumColumns = (width: number) => {
 
 /* ---------- Grid Item ---------- */
 
-const GridItem = ({
-  item,
-  size,
-  onPress,
-}: {
-  item: Alphabet;
-  size: number;
-  onPress: (item: Alphabet) => void;
-}) => {
-  const scale = useRef(new Animated.Value(1)).current;
-  const [imageError, setImageError] = useState(false);
+const GridItem = memo(
+  ({
+    item,
+    size,
+    onPress,
+  }: {
+    item: Alphabet;
+    size: number;
+    onPress: (item: Alphabet) => void;
+  }) => {
+    const [imageError, setImageError] = useState(false);
 
-  // ✅ IMPORTANT: reset state when FlatList reuses the cell
-  useEffect(() => {
-    setImageError(false);
-  }, [item.id]);
+    useEffect(() => {
+      setImageError(false);
+    }, [item.id]);
 
-  const handlePress = () => {
-    Animated.sequence([
-      Animated.spring(scale, {
-        toValue: 0.96,
-        useNativeDriver: true,
-      }),
-      Animated.spring(scale, {
-        toValue: 1,
-        friction: 4,
-        useNativeDriver: true,
-      }),
-    ]).start();
+    // ✅ simple calculations (no useMemo)
+    const imageSize = size * 0.55;
+    const letterFontSize = size * 0.22;
+    const nameFontSize = size * 0.09;
 
-    onPress(item);
-  };
+    // ✅ stable press handler
+    const handlePress = useCallback(() => {
+      onPress(item);
+    }, [onPress, item]);
 
-  return (
-    <Pressable onPress={handlePress}>
-      <Animated.View
-        style={[
-          styles.card,
-          {
-            width: size,
-            height: size,
-            backgroundColor: item.color,
-            transform: [{ scale }],
-            padding: size * 0.08,
-          },
-        ]}
-      >
-        {item.image && !imageError ? (
-          <Image
-            source={item.image}
-            resizeMode="contain"
-            onError={() => setImageError(true)}
-            style={{
-              width: size * 0.55,
-              height: size * 0.55,
-              flex: 1,
-            }}
-          />
-        ) : (
-          <View
-            style={{
-              width: size * 0.55,
-              height: size * 0.55,
-              justifyContent: 'center',
-              alignItems: 'center',
-              flex: 1,
-            }}
-          >
-            <Text style={{ fontSize: 32 }}>📸</Text>
+    return (
+      <Pressable onPress={handlePress}>
+        <View
+          style={[
+            styles.card,
+            {
+              width: size,
+              height: size,
+              backgroundColor: item.color,
+              padding: size * 0.08,
+            },
+          ]}
+        >
+            {item.image && !imageError ? (
+              <ExpoImage
+                source={item.image}
+                contentFit="contain"
+                cachePolicy="memory-disk"
+                onError={() => setImageError(true)}
+                style={{ width: imageSize, height: imageSize }}
+              />
+            ) : (
+              <View
+                style={[
+                  styles.fallbackImage,
+                  { width: imageSize, height: imageSize },
+                ]}
+              >
+                <Text style={styles.fallbackText}>📸</Text>
+              </View>
+            )}
+
+            <Text
+              style={[styles.letter, { fontSize: letterFontSize }]}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+            >
+              {item.letter}
+            </Text>
+
+            <Text
+              style={[styles.name, { fontSize: nameFontSize }]}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+            >
+              {item.name}
+            </Text>
           </View>
-        )}
-
-        <Text
-          style={[styles.letter, { fontSize: size * 0.22 }]}
-          numberOfLines={1}
-          adjustsFontSizeToFit
-        >
-          {item.letter}
-        </Text>
-
-        <Text
-          style={[styles.name, { fontSize: size * 0.09 }]}
-          numberOfLines={1}
-          adjustsFontSizeToFit
-        >
-          {item.name}
-        </Text>
-      </Animated.View>
-    </Pressable>
-  );
-};
+      </Pressable>
+    );
+  }
+);
 
 /* ---------- Screen ---------- */
 
 export default function HomeScreen() {
-  const { width } = useWindowDimensions();
+  const windowDims = useWindowDimensions();
   const insets = useSafeAreaInsets();
-  const [sound, setSound] = useState<Audio.Sound | null>(null);
+  const player = useAudioPlayer();
 
-  const numColumns = getNumColumns(width);
-  const cardSize =
-    (width - SPACING * (numColumns + 1)) / numColumns;
+  // Stable reference - only update on actual size changes
+  const width = useMemo(() => windowDims.width, [windowDims.width]);
 
-  const playSound = async (alphabet: Alphabet) => {
-    try {
-      if (sound) {
-        await sound.unloadAsync();
-        setSound(null);
-      }
+  const numColumns = useMemo(() => getNumColumns(width), [width]);
 
-      if (alphabet.sound) {
-        const { sound: newSound } = await Audio.Sound.createAsync(
-          alphabet.sound,
-          { shouldPlay: true }
-        );
-        setSound(newSound);
-      }
-    } catch (error) {
-      console.log('Error playing sound:', error);
-    }
-  };
+  const cardSize = useMemo(
+    () => (width - SPACING * (numColumns + 1)) / numColumns,
+    [width, numColumns]
+  );
+
+  const columnWrapperStyle = useMemo(
+    () => (numColumns > 1 ? { justifyContent: 'space-between' as const } : undefined),
+    [numColumns]
+  );
+
+  const contentContainerStyle = useMemo(
+    () => ({
+      padding: SPACING,
+      paddingBottom: insets.bottom + 140,
+    }),
+    [insets.bottom]
+  );
+
+  const getItemLayout = useCallback(
+    (_data: any, index: number) => {
+      const itemsPerRow = numColumns;
+      const row = Math.floor(index / itemsPerRow);
+      const itemHeight = cardSize + SPACING;
+      return {
+        length: itemHeight,
+        offset: row * itemHeight,
+        index,
+      };
+    },
+    [numColumns, cardSize]
+  );
+
+  // ✅ FIXED AUDIO (no remove on every tap)
+  const playSound = useCallback(
+    (alphabet: Alphabet) => {
+      if (!alphabet.sound) return;
+      player.replace(alphabet.sound);
+      player.play();
+    },
+    [player]
+  );
+
+  useEffect(() => {
+    return () => {
+      player.remove(); // cleanup only
+    };
+  }, [player]);
+
+  // ✅ memoized renderItem
+  const renderItem = useCallback(
+    ({ item }: { item: Alphabet }) => (
+      <GridItem item={item} size={cardSize} onPress={playSound} />
+    ),
+    [cardSize, playSound]
+  );
 
   return (
     <View style={styles.container}>
-      {/* Header */}
       <View style={styles.header}>
         <Text style={styles.title}>🎓 Learn Alphabets</Text>
         <Text style={styles.subtitle}>
@@ -160,32 +183,26 @@ export default function HomeScreen() {
         </Text>
       </View>
 
-      {/* Grid */}
       <FlatList
         data={ALPHABETS}
-        key={numColumns} // re-render only when layout changes
         numColumns={numColumns}
-        keyExtractor={(item) => item.id.toString()} // ✅ STABLE KEY
-        columnWrapperStyle={
-          numColumns > 1
-            ? { justifyContent: 'space-between' }
-            : undefined
-        }
-        contentContainerStyle={{
-          padding: SPACING,
-          paddingBottom: insets.bottom + 140,
-        }}
-        renderItem={({ item }) => (
-          <GridItem
-            item={item}
-            size={cardSize}
-            onPress={playSound}
-          />
-        )}
-        removeClippedSubviews={false} // ✅ CRITICAL for Expo Go
-        initialNumToRender={12}
+        keyExtractor={(item) => item.id.toString()}
+        columnWrapperStyle={columnWrapperStyle}
+        contentContainerStyle={contentContainerStyle}
+        renderItem={renderItem}
+        scrollEnabled={true}
+        scrollsToTop={false}
+        removeClippedSubviews={true}
+        initialNumToRender={6}
+        maxToRenderPerBatch={4}
+        updateCellsBatchingPeriod={80}
         windowSize={5}
+        scrollEventThrottle={400}
+        scrollIndicatorInsets={{ right: 1 }}
+        getItemLayout={getItemLayout}
         showsVerticalScrollIndicator={false}
+        decelerationRate={0.992}
+        nestedScrollEnabled={false}
       />
     </View>
   );
@@ -223,19 +240,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     margin: SPACING / 2,
-    flexDirection: 'column',
+    backgroundColor: '#fff',
+  },
 
-    ...(Platform.OS === 'web'
-      ? ({
-          boxShadow: '0px 2px 4px rgba(0,0,0,0.1)',
-        } as any)
-      : {
-          elevation: 5,
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.1,
-          shadowRadius: 4,
-        }),
+  fallbackImage: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+
+  fallbackText: {
+    fontSize: 32,
   },
 
   letter: {

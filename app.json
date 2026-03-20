@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "alphabet-learning",
+    "name": "ABC Phonics Learning",
     "slug": "alphabet-learning",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -37,7 +37,9 @@
             "backgroundColor": "#000000"
           }
         }
-      ]
+      ],
+      "expo-audio",
+      "expo-asset"
     ],
     "experiments": {
       "typedRoutes": true,

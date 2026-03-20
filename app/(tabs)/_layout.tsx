@@ -1,5 +1,5 @@
-import { Tabs } from 'expo-router';
 import React from 'react';
+import { Tabs } from 'expo-router';
 
 import { HapticTab } from '@/components/haptic-tab';
 import { IconSymbol } from '@/components/ui/icon-symbol';
@@ -7,14 +7,14 @@ import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
+  const colorScheme = useColorScheme() ?? 'light';
 
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
         headerShown: false,
         tabBarButton: HapticTab,
+        tabBarActiveTintColor: Colors[colorScheme].tint,
       }}
     >
       {/* 🅰️ ABC / Alphabets */}
@@ -25,8 +25,8 @@ export default function TabLayout() {
           tabBarLabel: 'ABC',
           tabBarIcon: ({ color }) => (
             <IconSymbol
-              size={28}
               name="textformat.abc"
+              size={28}
               color={color}
             />
           ),
@@ -41,8 +41,8 @@ export default function TabLayout() {
           tabBarLabel: 'Phonics',
           tabBarIcon: ({ color }) => (
             <IconSymbol
-              size={28}
               name="speaker.wave.2.fill"
+              size={28}
               color={color}
             />
           ),
@@ -52,9 +52,7 @@ export default function TabLayout() {
       {/* Hidden Explore tab */}
       <Tabs.Screen
         name="explore"
-        options={{
-          href: null,
-        }}
+        options={{ href: null }}
       />
     </Tabs>
   );
